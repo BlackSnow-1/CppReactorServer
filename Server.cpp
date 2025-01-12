@@ -9,6 +9,10 @@
 #include <iostream>
 #include <fcntl.h>
 #include <cstring>
+#include <sys/stat.h>
+#include <csignal>
+#include <cassert>
+#include <sys/sendfile.h>
 
 #define ARR_SIZE(arr) sizeof(arr)/sizeof(arr[0])
 
@@ -91,7 +95,7 @@ int epollRun(int lfd) {
                 acceptClient(lfd, epfd);
             } else {
                 // 主要是接受对端数据
-
+                recvHttpRequest(fd, epfd);
             }
         }
 
@@ -132,16 +136,191 @@ int acceptClient(int lfd, int epfd) {
 
 int recvHttpRequest(int cfd, int epfd) {
 
-    int len{}, total{};
+    size_t len{}, total{};
     char buf[4096] = {0};
     char tmp[1024] = {0};
     while ((len = recv(cfd, tmp, sizeof tmp, 0)) > 0) {
 
         if (total + len < ARR_SIZE(buf)) {
-            memcpy(buf, tmp, len);
+            memcpy(buf + total, tmp, len);
         }
         total += len;
     }
 
+    // 判断数据是否被接受完毕
+    if (len == -1 && errno == EAGAIN) {
+
+        //解析请求行
+
+    } else if (len == 0) {
+        // 客户端断开了连接
+        epoll_ctl(epfd, EPOLL_CTL_DEL, cfd, nullptr);
+        close(cfd);
+    } else {
+        std::cerr << "Error" << std::endl;
+    }
+
     return 0;
+}
+
+int parseRequestLine(const char *line, int cfd) {
+
+    // 解析请求行 get /xxx/1.jpg http/1.1
+    char method[12];
+    char path[1024];
+
+    sscanf(line, "%[^ ] %[^ ]", method, path);
+
+    if (strcasecmp(method, "get") != 0) {
+        return -1;
+    }
+
+    // 处理客户端请求的静态资源(目录或文件)
+    char *file{};
+    if (strcmp(path, "/") == 0) {
+
+        file = "./";
+
+    } else {
+        file = path + 1l;
+    }
+
+    // 获取文件属性
+    struct stat st{};
+    int ret = stat(file, &st);
+    if (ret == -1) {
+        // 文件不存在 -- 回复404
+        sendHeadMsg(cfd, 404, "Not Found", getFileType(".html"), -1);
+        sendFile("404.html", cfd);
+        return 0l;
+    }
+
+    // 判断文件类型
+    if (S_ISDIR(st.st_mode)) {
+        // 把这个目录中的内容发送给客户端
+
+    } else {
+        // 把文件的内容发送给客户端
+        sendHeadMsg(cfd, 200, "OK", getFileType(file), st.st_size);
+        sendFile("404.html", cfd);
+    }
+
+    return 0;
+}
+
+// 发送文件
+int sendFile(const char *fileName, int cfd) {
+
+    //都一部分发一部分
+
+
+    //1. 打开文件
+    int fd = open(fileName, O_RDONLY);
+    assert(fd > 0);
+#if 0
+    while (true) {
+        char buf[1024];
+        auto len = read(fd, buf, sizeof buf);
+        if (len > 0) {
+            send(cfd, buf, len, 0);
+            usleep(10); // 这非常重要
+        } else if (len == 0) {
+            break;
+        } else {
+            std::cerr << "read " << std::endl;
+        }
+    }
+#else
+
+    auto size = lseek(fd, 0, SEEK_END);
+    sendfile(cfd, fd, nullptr, size);
+#endif
+
+    return 0;
+
+
+}
+
+int sendHeadMsg(int cfd, int status, const char *descr, const char *type, int length) {
+
+    // 状态行
+    char buf[4096] = {0};
+
+    sprintf(buf, "http/1.1 %d %s\r\n", status, descr);
+
+    // 响应头
+    sprintf(buf + strlen(buf), "content-type: %s\r\n", type);
+    sprintf(buf + strlen(buf), "content-length: %d\r\n\r\n", length);
+
+    // 空行
+
+    send(cfd, buf, strlen(buf), 0);
+    return 0;
+}
+
+const char *getFileType(const char *name) {
+
+    // a.jpg a.mp4 a.html
+    // 自右向左查找 '.' 字符，如不存在返回null
+
+    const char *dot = strrchr(name, '.');
+
+    if (dot == nullptr) {
+        return "text/plain; charset=utf-8"; //纯文本
+    }
+
+    if (strcmp(dot, ".html") == 0 || strcmp(dot, ".htm") == 0) {
+        return "text/html; charset=utf-8";
+    }
+
+    if (strcmp(dot, ".jpg") == 0 || strcmp(dot, ".jpeg") == 0) {
+        return "image/jpeg";
+    }
+
+    if (strcmp(dot, "gif") == 0) {
+        return "image/gif";
+    }
+
+    if (strcmp(dot, ".mp4") == 0) {
+        return "video/mp4";
+    }
+
+    if (strcmp(dot, ".png") == 0) {
+        return "image/png";
+    }
+
+    if (strcmp(dot, ".css") == 0) {
+        return "text/css";
+    }
+
+    if (strcmp(dot, ".au") == 0) {
+        return "audio/basic";
+    }
+
+    if (strcmp(dot, ".wav") == 0) {
+        return "audio/wav";
+    }
+
+    if (strcmp(dot, ".avi") == 0) {
+        return "video/x-msvideo";
+    }
+
+    if (strcmp(dot, ".mov") == 0 || strcmp(dot, ".qt") == 0) {
+        return "video/quicktime";
+    }
+
+    if (strcmp(dot, ".mpeg") == 0 || strcmp(dot, ".mpe") == 0) {
+        return "video/mpeg";
+    }
+
+    if (strcmp(dot, ".ogg") == 0) {
+        return "application/ogg";
+    }
+
+    if (strcmp(dot, ".pac") == 0) {
+        return "application/x-ns-proxy-autoconfig";
+    }
+
+    return "text/plain; charset=utf-8";
+
 }

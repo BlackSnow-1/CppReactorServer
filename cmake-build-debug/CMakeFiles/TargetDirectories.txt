@@ -1,3 +1,0 @@
-/mnt/e/C++ReactorServer/cmake-build-debug/CMakeFiles/C__ReactorServer.dir
-/mnt/e/C++ReactorServer/cmake-build-debug/CMakeFiles/edit_cache.dir
-/mnt/e/C++ReactorServer/cmake-build-debug/CMakeFiles/rebuild_cache.dir

@@ -29,5 +29,7 @@ int sendHeadMsg(int cfd, int status, const char *descr, const char *type, int le
 // 获取文件类型
 const char *getFileType(const char *name);
 
+// 发送目录
+int sendDir(const char *dirName, int cfd);
 
 #endif //C__REACTORSERVER_SERVER_H

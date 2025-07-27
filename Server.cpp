@@ -13,12 +13,12 @@
 #include <csignal>
 #include <cassert>
 #include <sys/sendfile.h>
+#include <dirent.h>
 
 #define ARR_SIZE(arr) sizeof(arr)/sizeof(arr[0])
 
 
 int initListenFd(unsigned short port) {
-
     //1、 创建监听的fd
     int lfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -58,7 +58,6 @@ int initListenFd(unsigned short port) {
 
 
 int epollRun(int lfd) {
-
     // 1. 创建epoll 实例
     int epfd = epoll_create(1);
 
@@ -85,7 +84,6 @@ int epollRun(int lfd) {
     struct epoll_event epollEvents[1024];
 
     while (true) {
-
         int num = epoll_wait(epfd, epollEvents, ARR_SIZE(epollEvents), -1l);
 
         for (int i = 0; i < num; i++) {
@@ -98,7 +96,6 @@ int epollRun(int lfd) {
                 recvHttpRequest(fd, epfd);
             }
         }
-
     }
 
 
@@ -108,7 +105,6 @@ int epollRun(int lfd) {
 
 // 和客户端建立连接
 int acceptClient(int lfd, int epfd) {
-
     // 1. 建立连接
     int cfd = accept(lfd, nullptr, nullptr);
     if (cfd == -1) {
@@ -135,12 +131,10 @@ int acceptClient(int lfd, int epfd) {
 }
 
 int recvHttpRequest(int cfd, int epfd) {
-
     size_t len{}, total{};
     char buf[4096] = {0};
     char tmp[1024] = {0};
     while ((len = recv(cfd, tmp, sizeof tmp, 0)) > 0) {
-
         if (total + len < ARR_SIZE(buf)) {
             memcpy(buf + total, tmp, len);
         }
@@ -149,9 +143,7 @@ int recvHttpRequest(int cfd, int epfd) {
 
     // 判断数据是否被接受完毕
     if (len == -1 && errno == EAGAIN) {
-
         //解析请求行
-
     } else if (len == 0) {
         // 客户端断开了连接
         epoll_ctl(epfd, EPOLL_CTL_DEL, cfd, nullptr);
@@ -164,7 +156,6 @@ int recvHttpRequest(int cfd, int epfd) {
 }
 
 int parseRequestLine(const char *line, int cfd) {
-
     // 解析请求行 get /xxx/1.jpg http/1.1
     char method[12];
     char path[1024];
@@ -178,9 +169,7 @@ int parseRequestLine(const char *line, int cfd) {
     // 处理客户端请求的静态资源(目录或文件)
     char *file{};
     if (strcmp(path, "/") == 0) {
-
         file = "./";
-
     } else {
         file = path + 1l;
     }
@@ -198,7 +187,8 @@ int parseRequestLine(const char *line, int cfd) {
     // 判断文件类型
     if (S_ISDIR(st.st_mode)) {
         // 把这个目录中的内容发送给客户端
-
+        sendHeadMsg(cfd, 200, "OK", getFileType(".html"), -1);
+        sendDir(file, cfd);
     } else {
         // 把文件的内容发送给客户端
         sendHeadMsg(cfd, 200, "OK", getFileType(file), st.st_size);
@@ -210,7 +200,6 @@ int parseRequestLine(const char *line, int cfd) {
 
 // 发送文件
 int sendFile(const char *fileName, int cfd) {
-
     //都一部分发一部分
 
 
@@ -237,12 +226,9 @@ int sendFile(const char *fileName, int cfd) {
 #endif
 
     return 0;
-
-
 }
 
 int sendHeadMsg(int cfd, int status, const char *descr, const char *type, int length) {
-
     // 状态行
     char buf[4096] = {0};
 
@@ -259,7 +245,6 @@ int sendHeadMsg(int cfd, int status, const char *descr, const char *type, int le
 }
 
 const char *getFileType(const char *name) {
-
     // a.jpg a.mp4 a.html
     // 自右向左查找 '.' 字符，如不存在返回null
 
@@ -322,5 +307,50 @@ const char *getFileType(const char *name) {
     }
 
     return "text/plain; charset=utf-8";
+}
 
+
+int sendDir(const char *dirName, int cfd) {
+    char buf[4096] = {};
+    sprintf(buf, "<html><head><title>%s</title></head><body><table>", dirName, getFileType("."));
+
+    struct dirent **namelist;
+
+    int num = scandir(dirName, &namelist, nullptr, alphasort);
+
+    for (int i = 0; i < num; i++) {
+        // 取出文件名 namelist 指向的是一个指针数组 struct dirent* tmp[]
+        char *name = namelist[i]->d_name;
+        struct stat st{};
+
+        char subPath[1024] = {};
+        sprintf(subPath, "%s/%s", dirName, name);
+
+        stat(name, &st);
+
+        if (S_ISDIR(st.st_mode)) {
+            // a标签 <a href=""> name </a>
+
+            // href 后有斜线访问目录 没有访问文件
+            sprintf(buf + strlen(buf),
+                    "<tr><td><a href=\"%s/\">%s</a></td><td>%ld</td></tr>",
+                    name, name, st.st_size);
+        } else {
+            sprintf(buf + strlen(buf),
+                    "<tr><td><a href=\"%s\">%s</a></td><td>%ld</td></tr>",
+                    name, name, st.st_size);
+        }
+
+        send(cfd, buf, strlen(buf), 0);
+        memset(buf, 0, sizeof buf);
+        free(namelist[i]);
+    }
+
+    // 闭合外标签
+    sprintf(buf, "</table></body></html>");
+    send(cfd, buf, strlen(buf), 0);
+
+    free(namelist);
+
+    return 0;
 }

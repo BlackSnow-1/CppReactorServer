@@ -14,6 +14,7 @@
 #include <cassert>
 #include <sys/sendfile.h>
 #include <dirent.h>
+#include <errno.h>
 
 #define ARR_SIZE(arr) sizeof(arr)/sizeof(arr[0])
 
@@ -72,22 +73,21 @@ int epollRun(int lfd) {
 
     /* 监听的事件类型 */
     event.events = EPOLLIN;
-
     int ret = epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &event);
-
     if (ret == -1) {
         std::cerr << "epoll ctl fail" << std::endl;
         return -1l;
     }
 
     //3. 检测
-    struct epoll_event epollEvents[1024];
+    struct epoll_event evs[1024];
+    int size = sizeof(evs) / sizeof(struct epoll_event);
 
-    while (true) {
-        int num = epoll_wait(epfd, epollEvents, ARR_SIZE(epollEvents), -1l);
+    while (1) {
+        int num = epoll_wait(epfd, evs, size, -1);
 
         for (int i = 0; i < num; i++) {
-            int fd = epollEvents[i].data.fd;
+            int fd = evs[i].data.fd;
             if (fd == lfd) {
                 // 建立新连接
                 acceptClient(lfd, epfd);
@@ -105,6 +105,9 @@ int epollRun(int lfd) {
 
 // 和客户端建立连接
 int acceptClient(int lfd, int epfd) {
+
+    std::cout<<"acceptClient"<<std::endl;
+    // printf("AcceptClient\n");
     // 1. 建立连接
     int cfd = accept(lfd, nullptr, nullptr);
     if (cfd == -1) {
@@ -115,15 +118,17 @@ int acceptClient(int lfd, int epfd) {
     //2. 设置非阻塞
     int flag = fcntl(cfd, F_GETFL);
     flag |= O_NONBLOCK;
+
     fcntl(cfd, F_SETFL, flag);
 
     //3. cfd 添加到epoll中
     struct epoll_event ev{};
     ev.data.fd = cfd;
     ev.events = EPOLLIN | EPOLLET;
-    int ret = epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &ev);
+    int ret = epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);
     if (ret == -1) {
         std::cerr << "epoll_ctl" << std::endl;
+        printf("Error code: %d\n", errno);
         return -1l;
     }
 
@@ -131,9 +136,11 @@ int acceptClient(int lfd, int epfd) {
 }
 
 int recvHttpRequest(int cfd, int epfd) {
+    printf("开始接收数据了。。。\n");
+
     size_t len{}, total{};
-    char buf[4096] = {0};
-    char tmp[1024] = {0};
+    char buf[4096] = {};
+    char tmp[1024] = {};
     while ((len = recv(cfd, tmp, sizeof tmp, 0)) > 0) {
         if (total + len < ARR_SIZE(buf)) {
             memcpy(buf + total, tmp, len);
@@ -144,6 +151,11 @@ int recvHttpRequest(int cfd, int epfd) {
     // 判断数据是否被接受完毕
     if (len == -1 && errno == EAGAIN) {
         //解析请求行
+        char *pt = strstr(buf, "\r\n");
+
+        int reqLen = pt - buf;
+        buf[reqLen] = '\0';
+        parseRequestLine(buf, cfd);
     } else if (len == 0) {
         // 客户端断开了连接
         epoll_ctl(epfd, EPOLL_CTL_DEL, cfd, nullptr);
@@ -161,6 +173,8 @@ int parseRequestLine(const char *line, int cfd) {
     char path[1024];
 
     sscanf(line, "%[^ ] %[^ ]", method, path);
+
+    printf("method: %s\n", method);
 
     if (strcasecmp(method, "get") != 0) {
         return -1;

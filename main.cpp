@@ -4,8 +4,6 @@
 #include "Server.h"
 
 int main(int argc, char *argv[]) {
-
-
     if (argc < 3l) {
         std::cerr << "./a.out port path" << std::endl;
         return -1;
@@ -21,6 +19,6 @@ int main(int argc, char *argv[]) {
     int lfd = initListenFd(port);
 
     //启动服务器程序
-
+    epollRun(lfd);
     return 0;
 }

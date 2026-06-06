@@ -14,7 +14,7 @@
 #include <cassert>
 #include <sys/sendfile.h>
 #include <dirent.h>
-#include <errno.h>
+#include <cerrno>
 
 #define ARR_SIZE(arr) sizeof(arr)/sizeof(arr[0])
 

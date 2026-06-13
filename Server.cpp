@@ -135,13 +135,14 @@ int acceptClient(int lfd, int epfd) {
 }
 
 int recvHttpRequest(int cfd, int epfd) {
-    printf("开始接收数据了。。。\n");
+    std::cout << "开始接收数据了。。。" << std::endl;
 
-    size_t len{}, total{};
+    ssize_t len{};
+    size_t total{};
     char buf[4096] = {};
     char tmp[1024] = {};
     while ((len = recv(cfd, tmp, sizeof tmp, 0)) > 0) {
-        if (total + len < ARR_SIZE(buf)) {
+        if (total + len < std::size(buf)) {
             memcpy(buf + total, tmp, len);
         }
         total += len;
@@ -207,7 +208,7 @@ int parseRequestLine(const char *line, int cfd) {
     } else {
         // 把文件的内容发送给客户端
         sendHeadMsg(cfd, 200, "OK", getFileType(file), st.st_size);
-        sendFile("404.html", cfd);
+        sendFile(file, cfd);
     }
 
     return 0;

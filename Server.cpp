@@ -105,8 +105,7 @@ int epollRun(int lfd) {
 
 // 和客户端建立连接
 int acceptClient(int lfd, int epfd) {
-
-    std::cout<<"acceptClient"<<std::endl;
+    std::cout << "acceptClient" << std::endl;
     // printf("AcceptClient\n");
     // 1. 建立连接
     int cfd = accept(lfd, nullptr, nullptr);
@@ -180,6 +179,8 @@ int parseRequestLine(const char *line, int cfd) {
         return -1;
     }
 
+    decodeMsg(path, path);
+
     // 处理客户端请求的静态资源(目录或文件)
     char *file{};
     if (strcmp(path, "/") == 0) {
@@ -236,9 +237,20 @@ int sendFile(const char *fileName, int cfd) {
 #else
 
     auto size = lseek(fd, 0, SEEK_END);
-    sendfile(cfd, fd, nullptr, size);
-#endif
+    lseek(fd, 0,SEEK_SET);
 
+    off_t offset = 0;
+    while (offset < size) {
+        int ret = sendfile(cfd, fd, &offset, size);
+        printf("ret value :%d\n", ret);
+        if (ret == -1 && errno == EAGAIN) {
+            perror("没数据");
+        }
+    }
+
+
+#endif
+    close(fd);
     return 0;
 }
 
@@ -367,4 +379,41 @@ int sendDir(const char *dirName, int cfd) {
     free(namelist);
 
     return 0;
+}
+
+// 将字符转换为整数
+int hexToDec(char c) {
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+
+    if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+
+    if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+    return 0;
+}
+
+// 解码
+// to 存储解码之后的数据, 传出参数 from 被解码的数据 传入参数
+void decodeMsg(char *to, char *from) {
+    for (; *from != '\0'; from++) {
+        // isxdigit -> 判断字符是不是16进制格式 ，取值在 0-f
+        // Linux %E5%86%85%e6%a0%B8.jpg
+        if (from[0] == '%' && isxdigit(from[1]) && isxdigit(from[2])) {
+            // 将16进制的数->十进制将这个数值赋值给了字符int->char
+            // B2== 178
+            // 将3个字符，变成了一个字符，这个字符就是原始数据
+            *to = hexToDec(from[1]) * 16 + hexToDec(from[2]);
+
+            // 跳过from[1]和from[2]因此在当前循环中已经处理过了
+            from += 2;
+        } else {
+            // 字符拷贝，赋值
+            *to = *from;
+        }
+    }
 }

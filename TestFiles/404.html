@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - 页面未找到</title>
+    <style>
+        /* 基础样式重置 */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+
+        /* 内容容器 */
+        .container {
+            max-width: 600px;
+            padding: 40px 20px;
+        }
+
+        /* 404 大数字 */
+        .error-code {
+            font-size: 120px;
+            font-weight: 800;
+            color: #3a86ff;
+            line-height: 1;
+            margin-bottom: 20px;
+            letter-spacing: -2px;
+        }
+
+        /* 错误标题 */
+        .error-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2b2d42;
+            margin-bottom: 15px;
+        }
+
+        /* 提示文本 */
+        .error-message {
+            font-size: 16px;
+            color: #8d99ae;
+            margin-bottom: 35px;
+            line-height: 1.6;
+        }
+
+        /* 返回首页按钮 */
+        .btn-home {
+            display: inline-block;
+            padding: 13px 32px;
+            background-color: #3a86ff;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 15px;
+            box-shadow: 0 4px 14px rgba(58, 134, 255, 0.3);
+            transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        /* 按钮悬停动画 */
+        .btn-home:hover {
+            background-color: #256bfa;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(58, 134, 255, 0.4);
+        }
+
+        .btn-home:active {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="error-code">404</div>
+    <h1 class="error-title">抱歉，您访问的页面不存在</h1>
+    <p class="error-message">你可能输入了错误的网址，或者该页面已经被移除了。请点击下方按钮尝试返回网站主页。</p>
+    <a href="/" class="btn-home">返回首页</a>
+</div>
+
+</body>
+</html>
